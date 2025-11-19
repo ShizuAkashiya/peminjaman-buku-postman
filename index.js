@@ -22,7 +22,7 @@ app.post("/login", (req, res) => {
 
     res.json({message: "Login berhasil", user})
 })
-//function supaya checkrole nya gampang
+//function supaya checkrole nya gampang fr
 function checkRole(role) {
     return (req, res, next) => {
         const userRole = req.headers.role
