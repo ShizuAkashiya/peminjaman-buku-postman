@@ -1,107 +1,144 @@
-import express from "express";
+import express from "express"
 const app = express();
-
 app.use(express.json());
 
+let currentSession = null;
 
-let buku = [
-  { id: 1, judul: "Rohonc Codex", isPinjam: false, dipinjamOleh: null },
-  { id: 2, judul: "Voynich Manuscript", isPinjam: false, dipinjamOleh: null }
-];
+function requireLogin(req, res, next) {
+    if(!currentSession) {
+        return res.status(401).json({error: "Harus login dulu kak"})
+    }
+    req.user = currentSession
+    next();
+}
 
+app.post("/login", (req, res) => {
+    const {id} = req.body;
 
-let member = [
-  { id: 1, nama: "Ashe" },
-  { id: 2, nama: "Ucup" }
-];
+    const user = users.find(u => u.id == id)
+    if (!user) return res.status(404).json({error: "User tidak ditemukan"})
+    
+    currentSession = user;
 
+    res.json({message: "Login berhasil", user})
+})
+//function supaya checkrole nya gampang
+function checkRole(role) {
+    return (req, res, next) => {
+        const userRole = req.headers.role
+        if (!userRole) {
+            return res.status(403).json({error: "Role diperlukan kak"})
+        }
+        if (userRole !== role) {
+            return res.status(403).json({error: "kakak gak punya aksesnya, minta kak asherah"})
+        }
+        next()
+    }
+}
 
-app.get("/buku", (req, res) => {
-  res.json(buku);
-});
+let users = [
+    {id: 1, nama: "Agus", role: "student"},
+    {id: 2, nama: "Asherah", role: "admin"}
+]
 
+app.get("/users", (req, res) => {
+    res.json(users);
+})
 
-app.get("/buku/:id", (req, res) => {
-  const item = buku.find(b => b.id == req.params.id);
-  if (!item) return res.status(404).json({ message: "Buku tidak ditemukan" });
-  res.json(item);
-});
+app.post("/users", (req, res) => {
+   const newUser = {
+    id: users.length + 1,
+    name: req.body.name,
+    role: req.body.role
+   }
+   users.push(newUser)
+   res.json(newUser)
+})
 
-
-app.post("/buku", (req, res) => {
-  const { judul } = req.body;
-
-  const newBuku = {
-    id: buku.length + 1,
-    judul,
-    isPinjam: false,
-    dipinjamOleh: null
-  };
-
-  buku.push(newBuku);
-  res.status(201).json({ message: "Buku baru ditambahkan", data: newBuku });
-});
-
-
-app.put("/buku/:id/pinjam", (req, res) => {
-  const item = buku.find(b => b.id == req.params.id);
-  const { member } = req.body;
-
-  if (!item) return res.status(404).json({ message: "Buku gk ditemukan" });
-  if (item.isPinjam === true)
-    return res.status(400).json({ message: "Buku sudah dipinjam" });
-
-  item.isPinjam = true;
-  item.dipinjamOleh = member;
-
-  res.json({ message: "Buku berhasil dipinjam", data: item });
-});
-
-
-app.put("/buku/:id/kembali", (req, res) => {
-  const item = buku.find(b => b.id == req.params.id);
-
-  if (!item) return res.status(404).json({ message: "Buku gk ditemukan" });
-  if (item.isPinjam === false)
-    return res.status(400).json({ message: "Buku belum dipinjam" });
-
-  item.isPinjam = false;
-  item.dipinjamOleh = null;
-
-  res.json({ message: "Buku dikembalikan", data: item });
-});
+//bukubuku
+let bukubuku = [
+    {
+        id: 1,
+        title: "Voynich Manuscript",
+        ISBN: "9780997123104",
+        isPinjam: false,
+        dipinjamkanOleh: null
+    }
+]
 
 
-app.delete("/buku/:id", (req, res) => {
-  const index = buku.findIndex(b => b.id == req.params.id);
+app.get("/buku", requireLogin, checkRole("admin", "student"), (req, res) => {
+    res.json(buku);
+})
 
-  if (index === -1)
-    return res.status(404).json({ message: "Buku gk ditemukan" });
+app.get("/buku/:id", requireLogin, checkRole ("admin", "student"), (req,res) => {
+    const buku = bukubuku.find(b => b.id == req.params.id);
+    if (!buku) return res.status(404).json({message: "buku gk ditemukan"})
+    res.json(buku);
+})
 
-  const removed = buku.splice(index, 1);
+app.post("/buku", requireLogin, checkRole("admin"), (req, res) => {
 
-  res.json({ message: "Buku dihancurkan/dibuang", data: removed[0] });
-});
+    const newBuku = {
+        id: bukubuku.length + 1,
+        jduul: req.body.judul,
+        ISBN: req.body.ISBN,
+        isPinjam: false,
+        dipinjamkanOleh: null
+    };
+
+    bukubuku.push(newBuku)
+    res.status(201).json({message: "Buku baru sukses ditambahkan", data: newBuku})
+})
+
+app.put("/buku/:id", requireLogin, checkRole("admin"), (req, res) => {
+    const buku = bukubuku.find(b => b.id == req.params.id)
+    if (!buku) return res.status(404).json({message: "Buku gk ditemukan"})
+    
+    buku.title = req.body.title || buku.title
+    buku.ISBN = req.body.ISBN || buku.ISBN
+
+    res.json({message: "Buku sukses di update", data: buku})
+})
+
+app.delete("/buku/:id", requireLogin, checkRole("admin"), (req,res) => {
+    const index = buku.findIndex(b => b.id == req.params.id)
+
+    if (index === -1)
+        return res.status(404).json({message: "buku tidak ada"})
+
+    const removed = bukubuku.splice(index, 1)
+
+    res.json({message: "buku sukses di hancurkan/terbuang", data:removed[0]})
+})
+
+app.post("/buku/:id/pinjam", requireLogin, checkRole("student"), (req, res) => {
+    const {userid} = req.body;
+    const buku = bukubuku.find(b => b.id == req.params.id)
+    const user = users.find(u => u.id == userid)
+
+    if (!buku) return res.status(404).json({message: "buku gk ditemukan"})
+    if (!user) return res.status(404).json({message: "user gk ditemukan"})
+    if (!buku.isPinjam) return res.status(404).json({message: "buku sudah di pinjam"})
+    
+    buku.isPinjam = true;
+    buku.dipinjamkanOleh = userid;
+
+    res.json({message: "berhasil di pinjamkan", buku});
+})
 
 
-app.get("/member", (req, res) => {
-  res.json(member);
-});
 
-app.post("/member", (req, res) => {
-  const { nama } = req.body;
+app.put("/buku/:id/kembali", requireLogin, checkRole("student"), (req, res) => {
+    const buku = bukubuku.find(b => b.id == req.params.id)
 
-  const newMember = {
-    id: member.length + 1,
-    nama
-  };
+    if(!buku) return res.status(404).json({message:"buku gk ada"})
+    if (!buku.isPinjam) return res.status(404).json({message: "buku belom di pinjam"})
+    
+    buku.isPinjam = false;
+    buku.dipinjamkanOleh = null;
+    
+    res.json({message: "buku berhasil dikembalikan", buku})
+})
 
-  member.push(newMember);
-
-  res.status(201).json({
-    message: "Member baru ditambahkan",
-    data: newMember
-  });
-});
-
-app.listen(3000, () => console.log("Server jalan kak di: http://localhost:3000"));
+app.listen(3000, () => console.log("server jalan di sini kak: http://localhost:3000"))
